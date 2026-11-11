@@ -1,0 +1,30 @@
+[general]
+name=两点测距与方位角
+qgisMinimumVersion=3.28
+qgisMaximumVersion=4.99
+supportsQt6=True
+description=Click two points on the map to measure the ellipsoidal distance and the bearing from A to B, with the result labelled directly on the map at the end point.
+about=Click point A and then point B on the map canvas. The result label is drawn at point B and shows the ellipsoidal distance from A to B, the initial bearing in degrees from true north (0-360) and its Chinese compass name. Moving the mouse after picking A previews the measurement live. The label is anchored to the map coordinate and follows panning and zooming. Right-click or press Esc to finish; the annotation stays on the map until you choose "Clear measurement" from the Plugins menu.<br><br>Distances are computed on the WGS84 ellipsoid with QgsDistanceArea; bearings are great-circle initial bearings. No external dependencies and no network access.
+version=1.1.0
+author=xybdd1
+email=shenshaojun@139.com
+license=GPLv2
+homepage=https://github.com/xybdd1/point_bearing_tool
+tracker=https://github.com/xybdd1/point_bearing_tool/issues
+repository=https://github.com/xybdd1/point_bearing_tool
+hasProcessingProvider=no
+tags=measurement,distance,bearing,azimuth,annotation,great circle
+category=Plugins
+icon=icon.svg
+experimental=False
+deprecated=False
+server=False
+
+changelog=
+  1.1.0
+  - Removed the dock panel; the result is now labelled directly on the map at the end point
+  - Label follows map pan and zoom automatically
+  - Chinese compass names now use forms such as "东偏南" instead of literal translations
+  - Added a "Clear measurement" menu action
+  1.0.0
+  - First release
