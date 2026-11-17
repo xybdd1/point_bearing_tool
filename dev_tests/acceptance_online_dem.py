@@ -164,14 +164,23 @@ check('DEM 图层有效', dem_layer.isValid(), dem_layer.crs().authid())
 
 t = time.time()
 res_online = vs.compute_viewshed(dem_layer, QgsPointXY(LON, LAT), R3KM,
-                                 1.7, 0.0, True, 0.02)
+                                 30.0, 0.0, True, 0.02)
 compute_online = time.time() - t
 check('在线 DEM 视域计算成功', res_online is not None, '%.2fs' % compute_online)
 vis_o = 100.0 * res_online['visible_count'] / max(
     1, res_online['visible_count'] + res_online['blocked_count'])
-print('   在线: 可见 %.1f%%  地面 %.1fm  %dx%d  %.2fs'
+print('   在线: 可见 %.1f%%  地面 %.1fm  观察高 30m  %dx%d  %.2fs'
       % (vis_o, res_online['ground_z'], res_online['cols'],
          res_online['rows'], compute_online))
+
+res_low = vs.compute_viewshed(dem_layer, QgsPointXY(LON, LAT), R3KM,
+                              1.7, 0.0, True, 0.02)
+vis_low = 100.0 * res_low['visible_count'] / max(
+    1, res_low['visible_count'] + res_low['blocked_count'])
+print('   对照: 观察高 1.7m 可见 %.1f%%（地面 %.1fm）'
+      % (vis_low, res_low['ground_z']))
+check('30m 塔高比 1.7m 可见更多', vis_o > vis_low,
+      '%.1f%% vs %.1f%%' % (vis_o, vis_low))
 
 t = time.time()
 meta_hit = online_dem.build_dem_for_point(XYZ_SRC, LON, LAT, R3KM, cache_dir=CACHE)
@@ -197,7 +206,7 @@ check('DEM 范围覆盖视距圆',
 meta_r2k = online_dem.build_dem_for_point(XYZ_SRC, LON, LAT, 2000, cache_dir=CACHE)
 r2k_layer = QgsRasterLayer(meta_r2k['path'], 'r2k', 'gdal')
 res_r2k = vs.compute_viewshed(r2k_layer, QgsPointXY(LON, LAT), 2000,
-                              1.7, 0.0, True, 0.02)
+                              30.0, 0.0, True, 0.02)
 check('不同半径用同一瓦片 DEM 计算正常',
       res_r2k is not None
       and abs(res_r2k['ground_z'] - res_online['ground_z']) < 2.0,
@@ -246,7 +255,7 @@ print('=== F. 与本地 合并.tif 交叉验证')
 local = QgsRasterLayer(LOCAL_TIF, 'local')
 t = time.time()
 res_local = vs.compute_viewshed(local, QgsPointXY(LON, LAT), R3KM,
-                                1.7, 0.0, True, 0.02)
+                                30.0, 0.0, True, 0.02)
 compute_local = time.time() - t
 vis_l = 100.0 * res_local['visible_count'] / max(
     1, res_local['visible_count'] + res_local['blocked_count'])
@@ -327,6 +336,8 @@ center_3857 = tr.transform(QgsPointXY(LON, LAT))
 clear_cache()
 tool = vt.ViewshedTool(canvas, None, None)
 tool.settings.dem_layer_id = xyz_layer.id()
+check('观察者高度默认 30m', abs(tool.settings.observer_height - 30.0) < 1e-9,
+      '%.1f m' % tool.settings.observer_height)
 tool.center = center_3857
 tool.radius_m = R3KM
 t = time.time()

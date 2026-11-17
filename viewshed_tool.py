@@ -253,8 +253,10 @@ class ViewshedTool(QgsMapToolEmitPoint):
                 tot = vis + blk
                 pct = vis / tot * 100 if tot else 0
                 self._toast.hint(
-                    '缓存命中：可见 %.1f%%（%d/%d 像元）  地面 %.0fm  左键重算，右键结束'
-                    % (pct, vis, tot, cached['ground_z']), 8)
+                    '缓存命中：可见 %.1f%%（%d/%d 像元）  地面 %.0fm（观察高 %.1fm）  '
+                    '左键重算，右键结束'
+                    % (pct, vis, tot, cached['ground_z'],
+                       cached['observer_z'] - cached['ground_z']), 8)
                 self.analysisDone.emit(cached)
                 return
 
@@ -283,8 +285,9 @@ class ViewshedTool(QgsMapToolEmitPoint):
             tot = vis + blk
             pct = vis / tot * 100 if tot else 0
             self._toast.hint(
-                '可见 %.1f%%（%d/%d 像元）  地面 %.0fm  左键重算，右键结束'
-                % (pct, vis, tot, result['ground_z']), 8)
+                '可见 %.1f%%（%d/%d 像元）  地面 %.0fm（观察高 %.1fm）  左键重算，右键结束'
+                % (pct, vis, tot, result['ground_z'],
+                   result['observer_z'] - result['ground_z']), 8)
             self.analysisDone.emit(result)
 
         except vs_mod.ViewshedError as e:

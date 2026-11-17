@@ -36,10 +36,14 @@ class Settings(object):
 
     @property
     def observer_height(self):
+        """观察者高于地面的高度（米）
+
+        默认 30m：模拟基站铁塔。观察点高程 = DEM 地面高程 + 该值。
+        """
         try:
-            return float(self.get('observer_height', 1.7))
+            return float(self.get('observer_height', 30.0))
         except (TypeError, ValueError):
-            return 1.7
+            return 30.0
 
     @observer_height.setter
     def observer_height(self, value):
