@@ -146,6 +146,96 @@ def to_wgs84(point, source_crs):
     return QgsPointXY(converted.x(), converted.y())
 
 
+def from_wgs84(point, target_crs):
+    """把 WGS84 经纬度转换到目标坐标系"""
+    source = QgsCoordinateReferenceSystem(WGS84)
+    if target_crs is None or target_crs == source:
+        return QgsPointXY(point)
+
+    transform = QgsCoordinateTransform(source, target_crs, QgsProject.instance())
+    converted = transform.transform(QgsPointXY(point))
+    return QgsPointXY(converted.x(), converted.y())
+
+
+# ---------------------------------------------------------------------------
+# 范围圈（等距圆）
+# ---------------------------------------------------------------------------
+def destination_point(point, bearing_deg, distance_m, ellipsoid='WGS84'):
+    """从 point 出发，沿 bearing_deg 方向走 distance_m，求终点经纬度
+
+    用 Vincenty 正算（椭球面），这是"按给定距离和方向求目标点"的标准解法，
+    比在小范围内用球面公式更准。
+    """
+    a = 6378137.0
+    f = 1 / 298.257223563
+    b = (1 - f) * a
+
+    lat1 = math.radians(point.y())
+    lon1 = math.radians(point.x())
+    alpha1 = math.radians(bearing_deg)
+    s = float(distance_m)
+
+    if s == 0:
+        return QgsPointXY(point)
+
+    tan_u1 = (1 - f) * math.tan(lat1)
+    cos_u1 = 1.0 / math.sqrt(1 + tan_u1 * tan_u1)
+    sin_u1 = tan_u1 * cos_u1
+    sigma1 = math.atan2(tan_u1, math.cos(alpha1))
+    sin_alpha = cos_u1 * math.sin(alpha1)
+    cos_sq_alpha = 1 - sin_alpha * sin_alpha
+    u_sq = cos_sq_alpha * (a * a - b * b) / (b * b)
+    A = 1 + u_sq / 16384 * (4096 + u_sq * (-768 + u_sq * (320 - 175 * u_sq)))
+    B = u_sq / 1024 * (256 + u_sq * (-128 + u_sq * (74 - 47 * u_sq)))
+
+    sigma = s / (b * A)
+    for _ in range(100):
+        cos_2sm = math.cos(2 * sigma1 + sigma)
+        sin_sigma = math.sin(sigma)
+        cos_sigma = math.cos(sigma)
+        delta_sigma = (B * sin_sigma *
+                       (cos_2sm + B / 4 *
+                        (cos_sigma * (-1 + 2 * cos_2sm * cos_2sm)
+                         - B / 6 * cos_2sm * (-3 + 4 * sin_sigma * sin_sigma)
+                         * (-3 + 4 * cos_2sm * cos_2sm))))
+        sigma_new = s / (b * A) + delta_sigma
+        if abs(sigma_new - sigma) < 1e-12:
+            sigma = sigma_new
+            break
+        sigma = sigma_new
+
+    sin_sigma = math.sin(sigma)
+    cos_sigma = math.cos(sigma)
+    cos_2sm = math.cos(2 * sigma1 + sigma)
+
+    tmp = sin_u1 * sin_sigma - cos_u1 * cos_sigma * math.cos(alpha1)
+    lat2 = math.atan2(sin_u1 * cos_sigma + cos_u1 * sin_sigma * math.cos(alpha1),
+                      (1 - f) * math.sqrt(sin_alpha * sin_alpha + tmp * tmp))
+    lam = math.atan2(sin_sigma * math.sin(alpha1),
+                     cos_u1 * cos_sigma - sin_u1 * sin_sigma * math.cos(alpha1))
+    C = f / 16 * cos_sq_alpha * (4 + f * (4 - 3 * cos_sq_alpha))
+    L = lam - (1 - C) * f * sin_alpha * (
+        sigma + C * sin_sigma * (cos_2sm + C * cos_sigma *
+                                 (-1 + 2 * cos_2sm * cos_2sm)))
+    lon2 = lon1 + L
+
+    return QgsPointXY(math.degrees(lon2), math.degrees(lat2))
+
+
+def circle_points(center, radius_m, segments=180, ellipsoid='WGS84'):
+    """生成以 center 为圆心、radius_m 为半径的等距圆（经纬度点列表）
+
+    注意：这不是简单的"经纬度上加半径"，而是在椭球面上按固定距离
+    逐方位角求点——这样每个方向上的距离都真的等于 radius_m。
+    """
+    segments = max(8, int(segments))
+    points = []
+    for i in range(segments):
+        bearing = 360.0 * i / segments
+        points.append(destination_point(center, bearing, radius_m, ellipsoid))
+    return points
+
+
 class Measurement(object):
     """一次两点测量的完整结果"""
 

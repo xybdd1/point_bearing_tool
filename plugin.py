@@ -2,8 +2,9 @@
 """
 plugin.py - 插件主类
 
-不提供停靠面板：点按钮即进入"两点测量"地图工具，
-测完的结果直接画在地图上（线条终点处标注距离与方位角）。
+不提供停靠面板，两个地图工具：
+    1. 两点测距与方位角 —— 点两下，距离/方位角标在线条终点
+    2. 范围圈           —— 点圆心，拖动半径，画出等距圆
 """
 
 import os
@@ -14,6 +15,7 @@ from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 
 from .map_tool import TwoPointMeasureTool
+from .radius_tool import RadiusCircleTool
 
 PLUGIN_NAME = '两点测距与方位角'
 PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -25,8 +27,10 @@ class PointBearingPlugin(object):
         self.iface = iface
         self.plugin_dir = PLUGIN_DIR
         self.action = None
+        self.radius_action = None
         self.clear_action = None
         self.tool = None
+        self.radius_tool = None
         self.translator = None
         self._install_translator()
 
@@ -41,7 +45,13 @@ class PointBearingPlugin(object):
                 QCoreApplication.installTranslator(self.translator)
 
     def _icon(self):
-        for name in ('icon.svg', 'icon.png'):
+        return self._load_icon('icon.svg')
+
+    def _radius_icon(self):
+        return self._load_icon('icon_radius.svg')
+
+    def _load_icon(self, filename):
+        for name in (filename, 'icon.svg', 'icon.png'):
             path = os.path.join(self.plugin_dir, name)
             if os.path.exists(path):
                 return QIcon(path)
@@ -54,13 +64,21 @@ class PointBearingPlugin(object):
         self.action.setToolTip('在地图上点取两点，距离与方位角直接标在图上')
         self.action.triggered.connect(self.run)
 
-        self.clear_action = QAction('清除测量标注', self.iface.mainWindow())
+        self.radius_action = QAction(self._radius_icon(), '范围圈（半径）',
+                                     self.iface.mainWindow())
+        self.radius_action.setObjectName('pointBearingRadiusAction')
+        self.radius_action.setToolTip('点一个圆心，拖动鼠标画出等距范围圈')
+        self.radius_action.triggered.connect(self.run_radius)
+
+        self.clear_action = QAction('清除全部标注', self.iface.mainWindow())
         self.clear_action.setObjectName('pointBearingClearAction')
-        self.clear_action.setToolTip('清除地图上的测量线与结果标注')
+        self.clear_action.setToolTip('清除地图上的测距线、范围圈和结果标注')
         self.clear_action.triggered.connect(self.clear)
 
         self.iface.addToolBarIcon(self.action)
+        self.iface.addToolBarIcon(self.radius_action)
         self.iface.addPluginToMenu(PLUGIN_NAME, self.action)
+        self.iface.addPluginToMenu(PLUGIN_NAME, self.radius_action)
         self.iface.addPluginToMenu(PLUGIN_NAME, self.clear_action)
 
         # 地图工具切换时同步按钮状态
@@ -70,27 +88,32 @@ class PointBearingPlugin(object):
             pass
 
     def unload(self):
-        if self.tool is not None:
-            try:
-                if self.iface.mapCanvas().mapTool() is self.tool:
-                    self.iface.mapCanvas().unsetMapTool(self.tool)
-            except (AttributeError, RuntimeError):
-                pass
-            self.tool = None
+        canvas = self.iface.mapCanvas()
+        for tool in (self.tool, self.radius_tool):
+            if tool is not None:
+                try:
+                    if canvas.mapTool() is tool:
+                        canvas.unsetMapTool(tool)
+                except (AttributeError, RuntimeError):
+                    pass
+        self.tool = None
+        self.radius_tool = None
 
         try:
-            self.iface.mapCanvas().mapToolSet.disconnect(self._on_map_tool_changed)
+            canvas.mapToolSet.disconnect(self._on_map_tool_changed)
         except (AttributeError, TypeError, RuntimeError):
             pass
 
-        if self.action is not None:
-            self.iface.removePluginMenu(PLUGIN_NAME, self.action)
-            self.iface.removeToolBarIcon(self.action)
-            self.action = None
-
-        if self.clear_action is not None:
-            self.iface.removePluginMenu(PLUGIN_NAME, self.clear_action)
-            self.clear_action = None
+        for act in (self.action, self.radius_action, self.clear_action):
+            if act is not None:
+                try:
+                    self.iface.removePluginMenu(PLUGIN_NAME, act)
+                    self.iface.removeToolBarIcon(act)
+                except (AttributeError, TypeError):
+                    pass
+        self.action = None
+        self.radius_action = None
+        self.clear_action = None
 
     # ---------- 行为 ----------
     def run(self):
@@ -104,26 +127,42 @@ class PointBearingPlugin(object):
         self.tool.reset_measurement()
         canvas.setMapTool(self.tool)
 
-        self._push_hint('左键点取 A、B 两点；右键或 Esc 结束')
+        self._push_hint('左键点取 A、B 两点；右键或 Esc 结束', '两点测距')
+
+    def run_radius(self):
+        canvas = self.iface.mapCanvas()
+
+        if self.radius_tool is None:
+            self.radius_tool = RadiusCircleTool(canvas, self.iface)
+
+        # 每次进来都从干净状态开始
+        self.radius_tool.reset_all()
+        canvas.setMapTool(self.radius_tool)
+
+        self._push_hint('左键点圆心，移动鼠标调整半径；右键或 Esc 结束', '范围圈')
 
     def clear(self):
         if self.tool is not None:
             self.tool.reset_measurement()
-        self._push_hint('已清除测量标注')
+        if self.radius_tool is not None:
+            self.radius_tool.reset_all()
+        self._push_hint('已清除全部标注', '两点测距')
 
     def _on_measurement_done(self, measurement):
         pass
 
     def _on_map_tool_changed(self, new_tool):
-        if self.action is None:
-            return
-        is_self = (new_tool is self.tool)
-        self.action.setCheckable(is_self)
-        if is_self:
-            self.action.setChecked(True)
+        pairs = ((self.action, self.tool), (self.radius_action, self.radius_tool))
+        for action, tool in pairs:
+            if action is None:
+                continue
+            is_self = (new_tool is tool)
+            action.setCheckable(is_self)
+            if is_self:
+                action.setChecked(True)
 
-    def _push_hint(self, text, duration=4):
+    def _push_hint(self, text, title='两点测距', duration=4):
         try:
-            self.iface.messageBar().pushMessage('两点测距', text, level=0, duration=duration)
+            self.iface.messageBar().pushMessage(title, text, level=0, duration=duration)
         except (AttributeError, TypeError):
             pass
