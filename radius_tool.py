@@ -111,7 +111,7 @@ class RadiusCircleTool(QgsMapToolEmitPoint):
         if self.radius_m <= 0:
             return
 
-        # 在椭球面上按等距生成圆周点，再转回画布坐标系
+        # 严格的地面等距圆：每个方向到圆心的真实距离都等于半径
         ring_wgs = geodesy.circle_points(center_wgs, self.radius_m, segments=180)
         ring_canvas = [self._from_wgs84(p) for p in ring_wgs]
 
@@ -128,15 +128,13 @@ class RadiusCircleTool(QgsMapToolEmitPoint):
         self.spoke_rb.addPoint(cursor_point)
         self.spoke_rb.show()
 
-        # 标签放在圆周上方（正北方向）
+        # 标签放在圆周上方（正北方向），只显示半径
         north_wgs = geodesy.destination_point(center_wgs, 0, self.radius_m)
         label_point = self._from_wgs84(north_wgs)
 
         self.label.set_label(
             label_point,
-            [f'半径 {geodesy.format_distance(self.radius_m)}',
-             f'直径 {geodesy.format_distance(self.radius_m * 2)}',
-             f'周长 {geodesy.format_distance(2 * 3.141592653589793 * self.radius_m)}'])
+            [f'半径 {geodesy.format_distance(self.radius_m)}'])
 
         self.radiusChanged.emit(self.radius_m)
         self.canvas.refresh()
