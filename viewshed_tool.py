@@ -191,6 +191,14 @@ class ViewshedTool(QgsMapToolEmitPoint):
             self.analysisFailed.emit('未选择 DEM 高程图层')
             return
 
+        # 在线图层 / 坏图层提前拦截，避免读几万像元把 QGIS 卡死
+        ok, reason = vs_mod.check_dem_layer(dem)
+        if not ok:
+            self._toast.hint(reason.replace('\n', ' '), 10)
+            self.analysisFailed.emit(reason)
+            self._show_error(reason)
+            return
+
         cfg = self.settings
         self._toast.hint('正在计算视域…')
         self.analysisStarted.emit()
@@ -216,8 +224,8 @@ class ViewshedTool(QgsMapToolEmitPoint):
                 tolerance=cfg.tolerance)
 
             if result is None:
-                self.analysisFailed.emit('计算失败：观察点可能不在 DEM 范围内')
-                self._toast.hint('计算失败，检查 DEM 是否覆盖该点')
+                self.analysisFailed.emit('计算失败：观察点可能不在 DEM 覆盖范围内')
+                self._toast.hint('计算失败：观察点可能不在 DEM 覆盖范围内', 8)
                 return
 
             self._draw_result(result, dem_crs, canvas_crs)
@@ -228,14 +236,28 @@ class ViewshedTool(QgsMapToolEmitPoint):
             pct = vis / tot * 100 if tot else 0
             self._toast.hint(
                 '可见 %.1f%%（%d/%d 像元）  地面 %.0fm  左键重算，右键结束'
-                % (pct, vis, tot, result['ground_z']))
+                % (pct, vis, tot, result['ground_z']), 8)
             self.analysisDone.emit(result)
 
+        except vs_mod.ViewshedError as e:
+            self._toast.hint(str(e).replace('\n', ' '), 10)
+            self.analysisFailed.emit(str(e))
+            self._show_error(str(e))
         except Exception as e:
             import traceback
             traceback.print_exc()
             self.analysisFailed.emit(str(e))
-            self._toast.hint('计算出错: %s' % e)
+            self._toast.hint('计算出错: %s' % e, 8)
+            self._show_error('计算出错：%s' % e)
+
+    def _show_error(self, message):
+        """重要错误用弹窗显示，避免消息栏一闪而过"""
+        try:
+            from qgis.PyQt.QtWidgets import QMessageBox
+            QMessageBox.warning(self.iface.mainWindow() if self.iface else None,
+                                '视域分析', message)
+        except (AttributeError, RuntimeError):
+            pass
 
     def _draw_result(self, result, dem_crs, canvas_crs):
         """把可见区域画到画布上

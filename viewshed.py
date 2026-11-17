@@ -27,6 +27,96 @@ VISIBLE = 1
 BLOCKED = 0
 
 
+class ViewshedError(Exception):
+    """视域计算的业务错误（给用户看的中文原因）"""
+
+
+def check_dem_layer(layer):
+    """检查 DEM 图层是否可用于视域计算
+
+    返回 (ok: bool, reason: str)
+
+    关键：在线瓦片图层（XYZ/WMS/WCS）每次取样都要走网络。
+    视域计算要读几万到几十万个像元，会发出成千上万个请求，
+    直接把 QGIS 卡死。所以必须提前拒绝。
+    """
+    if layer is None:
+        return False, '未选择高程(DEM)图层'
+
+    try:
+        provider = layer.dataProvider()
+    except (AttributeError, RuntimeError):
+        return False, '图层无法读取'
+
+    if provider is None:
+        return False, '图层无法读取'
+
+    # 图层源字符串里带 type=xyz / type=wms / type=wcs 的就是在线服务
+    source = ''
+    try:
+        source = provider.dataSourceUri() or ''
+    except (AttributeError, RuntimeError):
+        source = ''
+
+    low = source.lower()
+    for tag, kind in (('type=xyz', '在线瓦片(XYZ)'),
+                      ('type=wms', '在线服务(WMS)'),
+                      ('type=wcs', '在线服务(WCS)')):
+        if tag in low:
+            return False, (
+                '这是%s图层，高程要实时联网下载。\n'
+                '视域计算需要读取数万个像元，会发出成千上万次网络请求、导致卡死。\n\n'
+                '请改用本地高程文件（.tif/.img/.asc/.hgt），'
+                '通过菜单「设置高程(DEM)图层…」选择。' % kind)
+
+    # 没有像素尺寸的（坏图层）
+    try:
+        if layer.rasterUnitsPerPixelX() <= 0 or layer.rasterUnitsPerPixelY() <= 0:
+            return False, '图层的像元尺寸无效，无法用于视域计算'
+    except (AttributeError, RuntimeError):
+        return False, '图层无法读取像元信息'
+
+    return True, ''
+
+
+def _read_pixels(provider, extent, n_cols, n_rows, band=1):
+    """读取一块像元，返回 (二维浮点数组, nodata)
+
+    处理 QGIS 的多波段栅格与 terrarium 高程编码。
+    """
+    blk = provider.block(band, extent, n_cols, n_rows)
+    if blk is None or blk.isEmpty():
+        return None, None
+
+    nodata = None
+    try:
+        nodata = provider.sourceNoDataValue(band)
+    except (AttributeError, RuntimeError):
+        pass
+
+    data = []
+    for r in range(blk.height()):
+        row = []
+        for c in range(blk.width()):
+            v = blk.value(r, c)
+            if v is None:
+                row.append(None)
+                continue
+            if isinstance(v, float) and math.isnan(v):
+                row.append(None)
+                continue
+            if nodata is not None:
+                try:
+                    if abs(v - nodata) < 1e-9:
+                        row.append(None)
+                        continue
+                except TypeError:
+                    pass
+            row.append(float(v))
+        data.append(row)
+    return data, nodata
+
+
 def meters_per_degree(latitude):
     """该纬度上 1 度经度 / 1 度纬度 对应的米数"""
     lat = max(-89.5, min(89.5, float(latitude)))
@@ -41,6 +131,11 @@ class _DemBlock(object):
         self.provider = layer.dataProvider()
         self.crs = layer.crs()
         self.geographic = self.crs.isGeographic()
+
+        # 先做可用性检查（在线图层直接拒绝，否则会卡死）
+        ok, reason = check_dem_layer(layer)
+        if not ok:
+            raise ViewshedError(reason)
 
         self.px_x = layer.rasterUnitsPerPixelX()
         self.px_y = layer.rasterUnitsPerPixelY()
@@ -179,6 +274,8 @@ def compute_viewshed(dem_layer, center_xy, radius_m,
     """
     try:
         blk = _DemBlock(dem_layer, center_xy, radius_m)
+    except ViewshedError:
+        raise
     except (ValueError, AttributeError, RuntimeError):
         return None
 

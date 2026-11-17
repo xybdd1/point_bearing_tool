@@ -204,25 +204,39 @@ class PointBearingPlugin(object):
     def choose_dem(self, show_message=True):
         """让用户选一个 DEM 栅格图层，并记住选择
 
-        优先用项目里已有的栅格图层；没有的话弹文件选择框。
+        只列本地文件图层——在线瓦片(XYZ/WMS)不能用于视域计算
+        （每次采样都要联网，读几万像元会卡死）。
         """
         from qgis.PyQt.QtWidgets import QInputDialog, QFileDialog, QMessageBox
+        from . import viewshed as vs_mod
 
-        rasters = [lyr for lyr in QgsProject.instance().mapLayers().values()
-                   if isinstance(lyr, QgsRasterLayer) and lyr.isValid()]
+        rasters = []
+        skipped = []
+        for lyr in QgsProject.instance().mapLayers().values():
+            if not isinstance(lyr, QgsRasterLayer) or not lyr.isValid():
+                continue
+            ok, reason = vs_mod.check_dem_layer(lyr)
+            if ok:
+                rasters.append(lyr)
+            else:
+                skipped.append((lyr.name(), reason))
 
         if rasters:
             names = [f'{l.name()}  [{l.crs().authid()}]' for l in rasters]
             item, ok = QInputDialog.getItem(
                 self.iface.mainWindow(), '选择高程(DEM)图层',
-                '用于视域分析的高程栅格：', names, 0, False)
+                '用于视域分析的高程栅格（仅本地文件）：', names, 0, False)
             if not ok:
                 return None
             idx = names.index(item) if item in names else 0
             layer = rasters[idx]
         else:
+            tip = '选择高程(DEM)文件'
+            if skipped:
+                tip += '\n\n注意：项目里的 %s 是在线图层，无法用于视域分析。' % (
+                    '、'.join(n for n, _ in skipped[:2]))
             path, _f = QFileDialog.getOpenFileName(
-                self.iface.mainWindow(), '选择高程(DEM)文件', '',
+                self.iface.mainWindow(), tip, '',
                 '栅格文件 (*.tif *.tiff *.img *.asc *.hgt *.vrt);;所有文件 (*)')
             if not path:
                 return None
@@ -232,6 +246,11 @@ class PointBearingPlugin(object):
                     QMessageBox.warning(self.iface.mainWindow(), '视域分析',
                                         '这个文件打不开，可能不是有效的栅格。')
                 return None
+            ok, reason = vs_mod.check_dem_layer(layer)
+            if not ok:
+                if show_message:
+                    QMessageBox.warning(self.iface.mainWindow(), '视域分析', reason)
+                return None
             QgsProject.instance().addMapLayer(layer)
 
         self.settings.dem_layer_id = layer.id()
@@ -240,7 +259,7 @@ class PointBearingPlugin(object):
             dem_crs = layer.crs()
             note = ''
             if dem_crs.isGeographic():
-                note = '（经纬度坐标系，内部会按该纬度换算米）'
+                note = '（经纬度坐标系，内部按该纬度换算米）'
             self._push_hint(
                 '已选用 DEM：%s  %dx%d%s' % (layer.name(), layer.width(),
                                             layer.height(), note),
