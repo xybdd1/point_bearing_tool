@@ -30,6 +30,37 @@
 - 观察点高程**自动从 DEM 读取**（不用手输）
 - 结果以绿色区域覆盖在地图上
 - DEM 只需在**首次使用时选择一次**，之后自动记住
+- 支持**本地 DEM**，也支持 **Terrarium 编码的 XYZ 在线高程**（见下节）
+
+#### 在线高程源（Terrarium XYZ）
+
+项目里如果有 Terrarium 编码的 XYZ 高程图层（例如「NextGIS 真实高程」：
+`https://terrarium.nextgis.ru/{z}/{x}/{y}.png`，图层源里带 `type=xyz`、
+`terrarium.nextgis.ru` 或 `interpretation=terrariumterrain`），视域工具会自动
+走「先缓存瓦片、再计算」的路径：
+
+1. 按视距圆算出需要的少量瓦片（3km 视距约 4 块 z12；1.2km 约 4 块 z13；小视距用 z14）
+2. 下载 PNG 瓦片并按 Terrarium 公式解码成高程米数：
+   `高程 = R × 256 + G + B / 256 − 32768`
+3. 拼成约 30m（大视距 35m）的本地 GeoTIFF（EPSG:4326）
+4. 用与本地 DEM **完全相同**的视域算法计算
+
+缓存（默认 `D:\Temp\point_bearing_cache`，可用环境变量
+`POINT_BEARING_CACHE_DIR` 覆盖，或用菜单设置里的默认目录）：
+
+| 内容 | 位置 |
+|---|---|
+| 原始瓦片 | `z{z}\{x}\{y}.png`（同一瓦片只下载一次） |
+| 拼好的 DEM | `dem\z{z}_x.._y.._{px}m.tif`（同一瓦片范围可复用） |
+| 视域结果 | `viewshed_cache\*.npz`（同点同视距直接秒出） |
+
+- 缓存目录**可以整个删掉**，下次自动重新下载，不影响功能
+- 断网 / 服务不可达时会在超时后弹窗提示「无法连接在线高程服务…」，**不会卡死**
+- 其他在线源（非 Terrarium 的 XYZ / WMS / WCS）仍按 v1.3.1 的逻辑拒绝
+
+实测（QGIS 4.2，3km 视距，以本地 30m 的 `合并.tif` 作参照）：首次含下载约 3–6 秒，
+热缓存 < 1 秒；在线结果与本地 DEM 的可见区域 **IoU≈0.9**，可见比例差 < 1 个百分点，
+观察点高程差约 1m。
 
 ## 安装
 
@@ -121,6 +152,8 @@
 射线之间的空隙像元会用完整视线检查补齐。支持**地球曲率修正**。
 
 观察点高程 = DEM 在该点的值 + 观察者高度（默认 1.7m）。
+DEM 读取范围会先对齐到像元格网，再按像元中心双线性插值，避免半像元偏移
+（陡坡上这能让地面高程差好几米）。
 
 DEM 为经纬度坐标系（如 EPSG:4326）时，会按观察点纬度把"度"换算成米，
 东西/南北分别换算后再计算，不需要预先重投影。
@@ -137,9 +170,12 @@ DEM 为经纬度坐标系（如 EPSG:4326）时，会按观察点纬度把"度"�
 
 ## 依赖
 
-仅依赖 QGIS 自带的 PyQt / qgis.core / qgis.gui。**无需额外 pip 安装，无网络访问。**
+仅依赖 QGIS 自带的 PyQt / qgis.core / qgis.gui，外加 QGIS 内置的 numpy 与 GDAL。
+**无需额外 pip 安装。**
 
-视域分析需要一份 DEM 高程栅格（你项目里的或本地 tif 文件都行）。
+视域分析需要一份 DEM 高程栅格：本地 tif / 项目里的栅格，或 Terrarium 编码的
+XYZ 在线高程图层。**本地 DEM 不需要网络**；在线高程需要能访问
+`terrarium.nextgis.ru`（会沿用系统的 HTTPS 代理设置）。
 
 ## 兼容性
 
@@ -158,8 +194,9 @@ point_bearing_tool/
 ├── plugin.py          # 主类：菜单、工具栏、DEM 选择
 ├── map_tool.py        # 测距工具
 ├── radius_tool.py     # 范围圈工具
-├── viewshed_tool.py   # 视域工具（交互 + 渲染）
+├── viewshed_tool.py   # 视域工具（交互 + 渲染 + 结果缓存）
 ├── viewshed.py        # 视域算法（射线追踪，可独立测试）
+├── online_dem.py      # 在线高程：Terrarium XYZ 瓦片下载/解码/拼 GeoTIFF/缓存
 ├── label_item.py      # 画布文字标签（QgsMapCanvasItem）
 ├── geodesy.py         # 距离/方位角/等距圆计算（可独立测试）
 ├── settings.py        # 设置持久化

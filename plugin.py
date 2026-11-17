@@ -16,6 +16,7 @@ from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 
+from . import online_dem
 from .map_tool import TwoPointMeasureTool
 from .radius_tool import RadiusCircleTool
 from .settings import Settings
@@ -204,8 +205,9 @@ class PointBearingPlugin(object):
     def choose_dem(self, show_message=True):
         """让用户选一个 DEM 栅格图层，并记住选择
 
-        只列本地文件图层——在线瓦片(XYZ/WMS)不能用于视域计算
-        （每次采样都要联网，读几万像元会卡死）。
+        列本地文件图层，以及受支持的在线 Terrarium XYZ 高程图层
+        （后者会先把视距圆覆盖的瓦片缓存到本地再计算，不会逐像元联网）。
+        其他在线瓦片(XYZ/WMS)仍然拒绝——每次采样都要联网，读几万像元会卡死。
         """
         from qgis.PyQt.QtWidgets import QInputDialog, QFileDialog, QMessageBox
         from . import viewshed as vs_mod
@@ -215,6 +217,9 @@ class PointBearingPlugin(object):
         for lyr in QgsProject.instance().mapLayers().values():
             if not isinstance(lyr, QgsRasterLayer) or not lyr.isValid():
                 continue
+            if online_dem.layer_is_terrarium(lyr):
+                rasters.append(lyr)
+                continue
             ok, reason = vs_mod.check_dem_layer(lyr)
             if ok:
                 rasters.append(lyr)
@@ -222,10 +227,16 @@ class PointBearingPlugin(object):
                 skipped.append((lyr.name(), reason))
 
         if rasters:
-            names = [f'{l.name()}  [{l.crs().authid()}]' for l in rasters]
+            names = []
+            for l in rasters:
+                label = f'{l.name()}  [{l.crs().authid()}]'
+                if online_dem.layer_is_terrarium(l):
+                    label += '（在线·Terrarium）'
+                names.append(label)
             item, ok = QInputDialog.getItem(
                 self.iface.mainWindow(), '选择高程(DEM)图层',
-                '用于视域分析的高程栅格（仅本地文件）：', names, 0, False)
+                '用于视域分析的高程栅格（本地文件或 Terrarium 在线高程）：',
+                names, 0, False)
             if not ok:
                 return None
             idx = names.index(item) if item in names else 0

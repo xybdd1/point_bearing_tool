@@ -167,12 +167,33 @@ class _DemBlock(object):
         from qgis.core import QgsRectangle
         want = QgsRectangle(center_xy.x() - half_x, center_xy.y() - half_y,
                             center_xy.x() + half_x, center_xy.y() + half_y)
-        self.extent = _intersect(layer.extent(), want)
+
+        # 把读取范围对齐到 DEM 像元格网。
+        # provider.block() 遇到没对齐的范围会做重采样，观察点可能落到相邻像元上，
+        # 在陡坡地形上地面高程能差好几米（视域结果跟着漂）。
+        # 对齐后 block 的像元与 DEM 像元一一对应，采样才是真实的。
+        layer_ext = layer.extent()
+        x_off0 = (want.xMinimum() - layer_ext.xMinimum()) / self.px_x
+        y_off0 = (layer_ext.yMaximum() - want.yMaximum()) / self.px_y
+        x_off1 = (want.xMaximum() - layer_ext.xMinimum()) / self.px_x
+        y_off1 = (layer_ext.yMaximum() - want.yMinimum()) / self.px_y
+
+        c0 = max(0, int(math.floor(x_off0)))
+        r0 = max(0, int(math.floor(y_off0)))
+        c1 = min(layer.width(), int(math.ceil(x_off1)))
+        r1 = min(layer.height(), int(math.ceil(y_off1)))
+        if c1 <= c0 or r1 <= r0:
+            raise ValueError('观察点不在 DEM 范围内')
+
+        self.extent = QgsRectangle(layer_ext.xMinimum() + c0 * self.px_x,
+                                   layer_ext.yMaximum() - r1 * self.px_y,
+                                   layer_ext.xMinimum() + c1 * self.px_x,
+                                   layer_ext.yMaximum() - r0 * self.px_y)
         if self.extent.isEmpty():
             raise ValueError('观察点不在 DEM 范围内')
 
-        n_cols = max(1, int(round(self.extent.width() / self.px_x)))
-        n_rows = max(1, int(round(self.extent.height() / self.px_y)))
+        n_cols = c1 - c0
+        n_rows = r1 - r0
 
         self.block = self.provider.block(1, self.extent, n_cols, n_rows)
         if self.block is None or self.block.isEmpty():
@@ -238,10 +259,16 @@ class _DemBlock(object):
         return top * (1 - fy) + bot * fy
 
     def xy_to_colrow(self, x, y):
-        return ((x - self.extent.xMinimum()) / self.px_x,
-                (self.extent.yMaximum() - y) / self.px_y)
+        """地图坐标 -> 像元中心索引（浮点，配双线性插值）
+
+        注意：返回的是"像元中心"索引（第 0 个像元的中心是 0.0），
+        这样和 sample() 的双线性约定一致；按角点索引会整体偏半个像元。
+        """
+        return ((x - self.extent.xMinimum()) / self.px_x - 0.5,
+                (self.extent.yMaximum() - y) / self.px_y - 0.5)
 
     def colrow_to_xy(self, col, row):
+        """像元中心索引 -> 该像元中心的地图坐标"""
         return (self.extent.xMinimum() + (col + 0.5) * self.px_x,
                 self.extent.yMaximum() - (row + 0.5) * self.px_y)
 
