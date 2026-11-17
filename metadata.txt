@@ -3,9 +3,9 @@ name=两点测距与方位角
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 supportsQt6=True
-description=Click two points on the map to measure the ellipsoidal distance and the bearing from A to B, with the result labelled directly on the map at the end point.
-about=Two map tools are provided. (1) Distance and bearing: click point A and then point B; the result label is drawn at point B and shows the ellipsoidal distance, the initial bearing in degrees from true north (0-360) and its Chinese compass name. Moving the mouse after picking A previews the measurement live. (2) Radius ring: click a centre point, then move the mouse to grow an equidistant circle around it; the radius is labelled on the circle. Click again to fix the circle. Both annotations are anchored to map coordinates and follow panning and zooming. Right-click or press Esc to finish; annotations stay on the map until you choose "Clear all annotations".<br><br>Distances are computed on the WGS84 ellipsoid with QgsDistanceArea; circles are generated with Vincenty direct solutions so the ground distance is exactly the requested radius in every direction. No external dependencies and no network access.
-version=1.2.1
+description=Three map tools: measure distance and bearing between two points, draw an equidistant radius ring, and compute a terrain viewshed from a DEM.
+about=The plugin provides three map tools, all activated from the toolbar and finished with right-click or Esc.<br><br>(1) Distance and bearing: click point A then point B; a label at point B shows the ellipsoidal distance, the initial bearing in degrees from true north (0-360) and its Chinese compass name. Moving the mouse after picking A previews the measurement live.<br><br>(2) Radius ring: click a centre point, move the mouse to grow an equidistant circle; the radius is labelled on the circle. Every direction has exactly the requested ground distance (Vincenty direct solution).<br><br>(3) Viewshed: choose a DEM once via "Set elevation (DEM) layer", then click an observation point and drag to set the view distance. The plugin reads the ground elevation at that point from the DEM and computes which cells are actually visible from it, drawing the result as a green overlay. Ray casting with a maximum-elevation test is used, with earth curvature correction.<br><br>All annotations are anchored to map coordinates and follow panning and zooming. No external dependencies and no network access.
+version=1.3.0
 author=xybdd1
 email=shenshaojun@139.com
 license=GPLv2
@@ -13,7 +13,7 @@ homepage=https://github.com/xybdd1/point_bearing_tool
 tracker=https://github.com/xybdd1/point_bearing_tool/issues
 repository=https://github.com/xybdd1/point_bearing_tool
 hasProcessingProvider=no
-tags=measurement,distance,bearing,azimuth,radius,circle,annotation,great circle
+tags=measurement,distance,bearing,azimuth,radius,circle,viewshed,visibility,line of sight,DEM,annotation
 category=Plugins
 icon=icon.svg
 experimental=False
@@ -21,16 +21,18 @@ deprecated=False
 server=False
 
 changelog=
+  1.3.0
+  - Added the "Viewshed" tool: click an observation point, drag the view distance, and get the terrain-visible area computed from a DEM
+  - Added "Set elevation (DEM) layer" - chosen once and remembered
+  - Observer height, target height and tolerance are configurable
+  - Supports both geographic (EPSG:4326) and projected DEMs
   1.2.1
   - The radius label now shows the radius only (diameter and circumference removed)
   1.2.0
-  - Added the "Radius ring" tool: click a centre, move the mouse to grow an equidistant circle
+  - Added the "Radius ring" tool
   - The circle is generated with Vincenty direct solutions, so the radius is exact in every direction
-  - Clear action now removes both distance lines and radius rings
   1.1.0
   - Removed the dock panel; the result is now labelled directly on the map at the end point
-  - Label follows map pan and zoom automatically
-  - Chinese compass names now use forms such as "东偏南" instead of literal translations
-  - Added a "Clear measurement" menu action
+  - Chinese compass names now use forms such as "东偏南"
   1.0.0
   - First release
