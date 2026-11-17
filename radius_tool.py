@@ -37,22 +37,22 @@ class RadiusCircleTool(QgsMapToolEmitPoint):
         # 圆（用折线闭合绘制，兼容各坐标系）
         self.circle_rb = QgsRubberBand(self.canvas,
                                        QgsWkbTypes.GeometryType.LineGeometry)
-        self.circle_rb.setColor(QColor('#2980b9'))
-        self.circle_rb.setWidth(2)
+        self.circle_rb.setColor(QColor('#e31b1b'))
+        self.circle_rb.setWidth(3)
 
-        # 半径指示线（圆心 → 光标）
+        # 半径指示线（圆心 → 光标），用浅一点的红色虚线，和圆周区分
         self.spoke_rb = QgsRubberBand(self.canvas,
                                       QgsWkbTypes.GeometryType.LineGeometry)
-        self.spoke_rb.setColor(QColor('#2980b9'))
-        self.spoke_rb.setWidth(1)
+        self.spoke_rb.setColor(QColor('#e31b1b'))
+        self.spoke_rb.setWidth(2)
         self.spoke_rb.setLineStyle(Qt.PenStyle.DashLine)
 
-        # 圆心标记
+        # 圆心标记：橙色实心点，和红色圆周、标签边框同色系但区分度足够
         self.center_marker = QgsRubberBand(self.canvas,
                                            QgsWkbTypes.GeometryType.PointGeometry)
-        self.center_marker.setColor(QColor('#c0392b'))
-        self.center_marker.setIconSize(11)
-        self.center_marker.setWidth(2)
+        self.center_marker.setColor(QColor('#ff8c00'))
+        self.center_marker.setIconSize(13)
+        self.center_marker.setWidth(3)
 
         # 半径标签
         self.label = MeasureLabelItem(self.canvas)
