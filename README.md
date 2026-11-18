@@ -165,13 +165,22 @@ DEM 为经纬度坐标系（如 EPSG:4326）时，会按观察点纬度把"度"�
 
 ## 可调参数
 
-在 `settings.py` 里可改（存在 QgsSettings，重装插件不丢）：
+菜单 `插件设置…`（扳手图标）里有完整设置界面，两个标签页：
+
+**视域计算**
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| `observer_height` | 30 m | 观察者高于地面的高度（默认模拟 30m 基站铁塔） |
-| `target_height` | 0 m | 目标高度 |
-| `tolerance` | 0.02 | 仰角容差，越大可见范围越大（抑制 DEM 噪声） |
+| 观察者高度 | 30 m | 观察点高程 = 地面 + 此值（模拟基站铁塔） |
+| 目标高度 | 0 m | 被观察物体自身高度 |
+| 仰角容差 | 0.02 | 越大越容易判"可见"（擦边可见）；设 0 最严格 |
+| 地球曲率修正 | 开 | 3km 处约影响 0.7m |
+| 计算质量 | 标准 | 快速 / 标准 / 精细（射线密度） |
+
+**显示样式**：视域填充色与不透明度、视距辅助圆、测距连线、范围圈圆周的颜色 / 线宽 / 透明度。
+
+所有设置存在 QgsSettings（`point_bearing_tool/*`），重装插件不丢，保存后下次计算立即生效；
+对话框里的「恢复默认」一键还原。
 
 ## 依赖
 
@@ -202,6 +211,7 @@ point_bearing_tool/
 ├── viewshed_tool.py   # 视域工具（交互 + 渲染 + 结果缓存）
 ├── viewshed.py        # 视域算法（射线追踪，可独立测试）
 ├── online_dem.py      # 在线高程：Terrarium XYZ 瓦片下载/解码/拼 GeoTIFF/缓存
+├── settings_dialog.py # 「插件设置…」对话框（视域参数 + 显示样式）
 ├── label_item.py      # 画布文字标签（QgsMapCanvasItem）
 ├── geodesy.py         # 距离/方位角/等距圆计算（可独立测试）
 ├── settings.py        # 设置持久化
@@ -209,6 +219,7 @@ point_bearing_tool/
 ├── icon.svg           # 测距图标
 ├── icon_radius.svg    # 范围圈图标
 ├── icon_viewshed.svg  # 视域图标
+├── icon_settings.svg  # 设置图标（扳手）
 ├── README.md
 └── LICENSE
 ```

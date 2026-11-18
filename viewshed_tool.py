@@ -58,8 +58,6 @@ class ViewshedTool(QgsMapToolEmitPoint):
         # 半径圈（起辅助作用，浅色虚线）
         self.radius_rb = QgsRubberBand(self.canvas,
                                        QgsWkbTypes.GeometryType.LineGeometry)
-        self.radius_rb.setColor(QColor('#ffffff'))
-        self.radius_rb.setWidth(1)
         self.radius_rb.setLineStyle(Qt.PenStyle.DashLine)
 
         # 观察点
@@ -74,10 +72,10 @@ class ViewshedTool(QgsMapToolEmitPoint):
         # 一旦给边描线，就会画出一格一格的网格（看起来像栅格网格）。
         self.result_rb = QgsRubberBand(self.canvas,
                                        QgsWkbTypes.GeometryType.PolygonGeometry)
-        self.result_rb.setColor(QColor(60, 220, 100, 80))
         if hasattr(self.result_rb, 'setStrokeColor'):
             self.result_rb.setStrokeColor(QColor(60, 220, 100, 0))
         self.result_rb.setWidth(0)
+        self._apply_styles()
 
         # 标签
         self.label = MeasureLabelItem(self.canvas)
@@ -89,8 +87,25 @@ class ViewshedTool(QgsMapToolEmitPoint):
         self._toast = _Toast(iface)
 
     # ---------- 生命周期 ----------
+    def _apply_styles(self):
+        """从设置读颜色/透明度（工具创建和每次计算前都刷新一次）
+
+        注意 QgsRubberBand.setColor 会连描边一起设置，必须再压回透明，
+        否则改了填充透明度后像元网格线会重新出现。
+        """
+        try:
+            self.result_rb.setColor(self.settings.viewshed_fill_qcolor())
+            if hasattr(self.result_rb, 'setStrokeColor'):
+                self.result_rb.setStrokeColor(QColor(0, 0, 0, 0))
+            self.result_rb.setWidth(0)
+            self.radius_rb.setColor(self.settings.viewshed_ring_qcolor())
+            self.radius_rb.setWidth(max(0, self.settings.vs_ring_width))
+        except (AttributeError, TypeError, RuntimeError):
+            pass
+
     def activate(self):
         super().activate()
+        self._apply_styles()
         self.canvas.setCursor(Qt.CursorShape.CrossCursor)
         dem_name = self._current_dem_name()
         if dem_name:
@@ -300,7 +315,9 @@ class ViewshedTool(QgsMapToolEmitPoint):
                 dem, center_dem, self.radius_m,
                 observer_height=cfg.observer_height,
                 target_height=cfg.target_height,
-                tolerance=cfg.tolerance)
+                curvature=cfg.curvature,
+                tolerance=cfg.tolerance,
+                quality=cfg.quality_factor())
 
             if result is None:
                 message = (
@@ -412,7 +429,8 @@ class ViewshedTool(QgsMapToolEmitPoint):
         return (source, mtime,
                 round(float(center_dem.x()), 7), round(float(center_dem.y()), 7),
                 round(float(self.radius_m), 2),
-                cfg.observer_height, cfg.target_height, cfg.tolerance)
+                cfg.observer_height, cfg.target_height, cfg.tolerance,
+                cfg.curvature, cfg.quality)
 
     def _remember_result(self, key, result):
         self._result_cache[key] = result

@@ -16,6 +16,7 @@ from qgis.PyQt.QtGui import QColor
 
 from . import geodesy
 from .label_item import MeasureLabelItem
+from .settings import Settings
 
 
 class TwoPointMeasureTool(QgsMapToolEmitPoint):
@@ -28,6 +29,7 @@ class TwoPointMeasureTool(QgsMapToolEmitPoint):
         super().__init__(canvas)
         self.canvas = canvas
         self.iface = iface
+        self.settings = Settings()
 
         self.point_a = None
         self.point_b = None
@@ -35,8 +37,6 @@ class TwoPointMeasureTool(QgsMapToolEmitPoint):
 
         # A-B 连线
         self.line_rb = QgsRubberBand(self.canvas, QgsWkbTypes.GeometryType.LineGeometry)
-        self.line_rb.setColor(QColor('#ff8c00'))
-        self.line_rb.setWidth(2)
 
         # A、B 点标记
         self.marker_a = self._make_marker('#27ae60')
@@ -53,6 +53,14 @@ class TwoPointMeasureTool(QgsMapToolEmitPoint):
 
         self._toast = _Toast(iface)
 
+    def _apply_styles(self):
+        """从设置读测距线颜色/粗细/透明度"""
+        try:
+            self.line_rb.setColor(self.settings.measure_qcolor())
+            self.line_rb.setWidth(max(1, self.settings.measure_width))
+        except (AttributeError, TypeError, RuntimeError):
+            pass
+
     def _make_marker(self, color):
         rb = QgsRubberBand(self.canvas, QgsWkbTypes.GeometryType.PointGeometry)
         rb.setColor(QColor(color))
@@ -63,6 +71,7 @@ class TwoPointMeasureTool(QgsMapToolEmitPoint):
     # ---------- 生命周期 ----------
     def activate(self):
         super().activate()
+        self._apply_styles()
         self.canvas.setCursor(Qt.CursorShape.CrossCursor)
         self._toast.hint('左键点两点测量，右键结束')
 

@@ -22,6 +22,7 @@ server=False
 
 changelog=
   1.4.0
+  - Added the "Plugin settings…" dialog (wrench icon): observer height, target height, elevation tolerance, earth-curvature switch and compute quality (fast/standard/fine) in the Viewshed tab; colours, line widths and opacity for the viewshed fill, view-distance ring, measure line and radius circle in the Style tab. Settings are saved in QgsSettings and take effect on the next calculation; a "Restore defaults" button is included
   - Viewshed now supports online Terrarium XYZ elevation layers (e.g. terrarium.nextgis.ru): the few tiles covering the view circle are downloaded, decoded from RGB (elevation = R*256 + G + B/256 - 32768), cached under D:\Temp\point_bearing_cache and stitched into a local GeoTIFF that runs through the existing viewshed algorithm
   - Observer height now defaults to 30 m (simulating a base-station tower), so the observation point is DEM ground elevation + 30 m; still configurable in settings
   - Tiles, stitched DEMs and viewshed results are cached, so the second calculation on the same spot is instant; the cache can be deleted safely

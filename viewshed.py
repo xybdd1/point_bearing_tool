@@ -275,7 +275,7 @@ class _DemBlock(object):
 
 def compute_viewshed(dem_layer, center_xy, radius_m,
                      observer_height=1.7, target_height=0.0,
-                     curvature=True, tolerance=0.02):
+                     curvature=True, tolerance=0.02, quality=1.0):
     """计算视域
 
     参数：
@@ -285,6 +285,7 @@ def compute_viewshed(dem_layer, center_xy, radius_m,
         observer_height  观察者高于地面的高度（米）
         target_height    目标高度（米）
         curvature        是否做地球曲率修正
+        quality          射线密度倍率（0.5 快速 / 1.0 标准 / 2.0 精细）
 
     返回 dict：
         {
@@ -319,7 +320,7 @@ def compute_viewshed(dem_layer, center_xy, radius_m,
 
     # 射线数量：让最外圈相邻射线间距明显小于 1 像元（多打一些保证覆盖）
     n_rays = int(2.0 * math.pi * radius_m / max(1.0, min(blk.px_m_x, blk.px_m_y)))
-    n_rays = max(144, min(7200, n_rays * 3))
+    n_rays = max(72, min(7200, int(n_rays * 3 * max(0.25, float(quality)))))
 
     # 观察点自身所属像元
     ci0 = min(max(int(oc), 0), blk.cols - 1)

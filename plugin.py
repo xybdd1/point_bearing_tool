@@ -36,6 +36,7 @@ class PointBearingPlugin(object):
         self.radius_action = None
         self.viewshed_action = None
         self.dem_action = None
+        self.settings_action = None
         self.clear_action = None
         self.tool = None
         self.radius_tool = None
@@ -93,6 +94,12 @@ class PointBearingPlugin(object):
         self.dem_action.setToolTip('选择用于视域分析的高程栅格，只需设置一次')
         self.dem_action.triggered.connect(lambda: self.choose_dem(show_message=True))
 
+        self.settings_action = QAction(self._load_icon('icon_settings.svg'),
+                                       '插件设置…', self.iface.mainWindow())
+        self.settings_action.setObjectName('pointBearingSettingsAction')
+        self.settings_action.setToolTip('视域参数（塔高/容差/质量）与显示样式设置')
+        self.settings_action.triggered.connect(self.run_settings)
+
         self.clear_action = QAction('清除全部标注', self.iface.mainWindow())
         self.clear_action.setObjectName('pointBearingClearAction')
         self.clear_action.setToolTip('清除地图上的测距线、范围圈、视域结果和标注')
@@ -105,6 +112,7 @@ class PointBearingPlugin(object):
         self.iface.addPluginToMenu(PLUGIN_NAME, self.radius_action)
         self.iface.addPluginToMenu(PLUGIN_NAME, self.viewshed_action)
         self.iface.addPluginToMenu(PLUGIN_NAME, self.dem_action)
+        self.iface.addPluginToMenu(PLUGIN_NAME, self.settings_action)
         self.iface.addPluginToMenu(PLUGIN_NAME, self.clear_action)
 
         # 地图工具切换时同步按钮状态
@@ -132,7 +140,7 @@ class PointBearingPlugin(object):
             pass
 
         for act in (self.action, self.radius_action, self.viewshed_action,
-                    self.dem_action, self.clear_action):
+                    self.dem_action, self.settings_action, self.clear_action):
             if act is not None:
                 try:
                     self.iface.removePluginMenu(PLUGIN_NAME, act)
@@ -143,9 +151,23 @@ class PointBearingPlugin(object):
         self.radius_action = None
         self.viewshed_action = None
         self.dem_action = None
+        self.settings_action = None
         self.clear_action = None
 
     # ---------- 行为 ----------
+    def run_settings(self):
+        """打开「插件设置…」对话框；保存后刷新已创建工具的样式"""
+        from .settings_dialog import SettingsDialog
+        dialog = SettingsDialog(self.iface.mainWindow())
+        if dialog.exec() == SettingsDialog.DialogCode.Accepted:
+            for tool in (self.tool, self.radius_tool, self.viewshed_tool):
+                if tool is not None and hasattr(tool, '_apply_styles'):
+                    try:
+                        tool._apply_styles()
+                    except (AttributeError, RuntimeError):
+                        pass
+            self._push_hint('设置已保存，下次计算立即生效', '插件设置', 4)
+
     def run(self):
         canvas = self.iface.mapCanvas()
 

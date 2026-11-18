@@ -17,6 +17,7 @@ from qgis.PyQt.QtGui import QColor
 
 from . import geodesy
 from .label_item import MeasureLabelItem
+from .settings import Settings
 
 
 class RadiusCircleTool(QgsMapToolEmitPoint):
@@ -29,6 +30,7 @@ class RadiusCircleTool(QgsMapToolEmitPoint):
         super().__init__(canvas)
         self.canvas = canvas
         self.iface = iface
+        self.settings = Settings()
 
         self.center = None
         self.radius_m = 0.0
@@ -37,8 +39,6 @@ class RadiusCircleTool(QgsMapToolEmitPoint):
         # 圆（用折线闭合绘制，兼容各坐标系）
         self.circle_rb = QgsRubberBand(self.canvas,
                                        QgsWkbTypes.GeometryType.LineGeometry)
-        self.circle_rb.setColor(QColor('#e31b1b'))
-        self.circle_rb.setWidth(3)
 
         # 半径指示线（圆心 → 光标），用浅一点的红色虚线，和圆周区分
         self.spoke_rb = QgsRubberBand(self.canvas,
@@ -71,8 +71,17 @@ class RadiusCircleTool(QgsMapToolEmitPoint):
             pass
 
     # ---------- 生命周期 ----------
+    def _apply_styles(self):
+        """从设置读圆周颜色/粗细/透明度"""
+        try:
+            self.circle_rb.setColor(self.settings.radius_qcolor())
+            self.circle_rb.setWidth(max(1, self.settings.radius_width))
+        except (AttributeError, TypeError, RuntimeError):
+            pass
+
     def activate(self):
         super().activate()
+        self._apply_styles()
         self.canvas.setCursor(Qt.CursorShape.CrossCursor)
         self._toast.hint('左键确定圆心，移动鼠标调整半径')
 
