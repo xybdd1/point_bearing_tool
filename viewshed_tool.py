@@ -69,13 +69,15 @@ class ViewshedTool(QgsMapToolEmitPoint):
         self.center_marker.setIconSize(13)
         self.center_marker.setWidth(3)
 
-        # 结果图层（可见区域）
+        # 结果图层（可见区域）：只填充、不描边
+        # 相邻像元共用边，QPainter 奇偶填充会自动合成一整块纯色区域；
+        # 一旦给边描线，就会画出一格一格的网格（看起来像栅格网格）。
         self.result_rb = QgsRubberBand(self.canvas,
                                        QgsWkbTypes.GeometryType.PolygonGeometry)
         self.result_rb.setColor(QColor(60, 220, 100, 80))
         if hasattr(self.result_rb, 'setStrokeColor'):
-            self.result_rb.setStrokeColor(QColor(60, 220, 100, 200))
-        self.result_rb.setWidth(1)
+            self.result_rb.setStrokeColor(QColor(60, 220, 100, 0))
+        self.result_rb.setWidth(0)
 
         # 标签
         self.label = MeasureLabelItem(self.canvas)
@@ -459,8 +461,9 @@ class ViewshedTool(QgsMapToolEmitPoint):
     def _draw_result(self, result, dem_crs, canvas_crs):
         """把可见区域画到画布上
 
-        做法：把所有可见像元拼成一个 MultiPolygon（共边贴合，无条纹接缝），
-        整体一次坐标变换后交给橡皮筋——比逐像元 addGeometry 快一个数量级。
+        做法：把所有可见像元拼成一个 MultiPolygon，整体一次坐标变换后交给
+        橡皮筋。相邻像元共边、填充用奇偶规则，会合成一整块纯色区域；
+        橡皮筋不描边（见 __init__），所以不会出现一格一格的网格线。
         """
         ext = result['extent']
         px_x, px_y = result['px']

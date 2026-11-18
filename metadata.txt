@@ -27,7 +27,7 @@ changelog=
   - Tiles, stitched DEMs and viewshed results are cached, so the second calculation on the same spot is instant; the cache can be deleted safely
   - Tile downloads use a short timeout and fail with a clear message instead of freezing QGIS; other online sources are still rejected
   - Fixed DEM block alignment and half-pixel sampling so the observer elevation is read from the correct DEM cell (local and online paths)
-  - The visible-area overlay is now built as one MultiPolygon, much faster to draw
+  - The visible-area overlay is filled with a uniform translucent colour (no per-cell grid lines)
   1.3.1
   - Reject online tile (XYZ/WMS/WCS) DEM layers in the viewshed tool to prevent QGIS from freezing
   1.3.0

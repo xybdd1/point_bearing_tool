@@ -347,6 +347,11 @@ check('端到端首次（含下载）< 5s', first_run < 5.0,
       '%.2fs  计算 %.2fs 绘制 %.2fs'
       % (first_run, timings.get('compute', -1), timings.get('draw', -1)))
 check('结果已锁存', tool.locked)
+try:
+    stroke_alpha = tool.result_rb.strokeColor().alpha()
+except (AttributeError, TypeError):
+    stroke_alpha = 0
+check('结果填充无描边（纯色）', stroke_alpha == 0, 'stroke alpha=%d' % stroke_alpha)
 
 t = time.time()
 tool.run_analysis()
