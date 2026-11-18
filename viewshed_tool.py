@@ -92,7 +92,20 @@ class ViewshedTool(QgsMapToolEmitPoint):
     def activate(self):
         super().activate()
         self.canvas.setCursor(Qt.CursorShape.CrossCursor)
-        self._toast.hint('左键点观察点，移动鼠标设半径，再左键计算视域')
+        dem_name = self._current_dem_name()
+        if dem_name:
+            self._toast.hint('左键点观察点，移动鼠标设半径，再左键计算视域'
+                             '（当前 DEM：%s）' % dem_name)
+        else:
+            self._toast.hint('左键点观察点，移动鼠标设半径，再左键计算视域')
+
+    def _current_dem_name(self):
+        """当前设置的 DEM 名称（不弹选择框，只读）"""
+        lid = self.settings.dem_layer_id
+        layer = QgsProject.instance().mapLayer(lid) if lid else None
+        if isinstance(layer, QgsRasterLayer) and layer.isValid():
+            return layer.name()
+        return ''
 
     def deactivate(self):
         self._toast.clear()
@@ -243,6 +256,24 @@ class ViewshedTool(QgsMapToolEmitPoint):
             else:
                 center_dem = center_canvas
 
+            # 先检查观察点是否在 DEM 覆盖范围内：不在就直接说清楚，别让用户干等
+            dem_extent = dem.extent()
+            if not dem_extent.contains(center_dem):
+                message = (
+                    '观察点不在所选 DEM 的覆盖范围内，无法计算视域。\n\n'
+                    'DEM：%s（%s）\n'
+                    'DEM 范围：%.6f, %.6f ～ %.6f, %.6f\n'
+                    '观察点：%.6f, %.6f\n\n'
+                    '请确认选的是覆盖该点的 DEM（菜单「设置高程(DEM)图层…」可更换）。'
+                    % (dem.name(), dem.crs().authid(),
+                       dem_extent.xMinimum(), dem_extent.yMinimum(),
+                       dem_extent.xMaximum(), dem_extent.yMaximum(),
+                       center_dem.x(), center_dem.y()))
+                self._toast.hint('观察点不在所选 DEM 覆盖范围内', 10)
+                self.analysisFailed.emit(message)
+                self._show_error(message)
+                return
+
             # 同一位置、同一视距、同一参数：直接复用上次结果
             key = self._result_key(dem, center_dem)
             cached = self._get_cached_result(key)
@@ -262,7 +293,7 @@ class ViewshedTool(QgsMapToolEmitPoint):
                 self.analysisDone.emit(cached)
                 return
 
-            self._toast.hint('正在计算视域…')
+            self._toast.hint('正在计算视域…（DEM：%s）' % dem.name())
             self.analysisStarted.emit()
 
             result = vs_mod.compute_viewshed(
@@ -272,8 +303,17 @@ class ViewshedTool(QgsMapToolEmitPoint):
                 tolerance=cfg.tolerance)
 
             if result is None:
-                self.analysisFailed.emit('计算失败：观察点可能不在 DEM 覆盖范围内')
-                self._toast.hint('计算失败：观察点可能不在 DEM 覆盖范围内', 8)
+                message = (
+                    '计算失败：在 DEM 中读不到观察点附近的有效高程。\n\n'
+                    'DEM：%s（%s）\n'
+                    '观察点：%.6f, %.6f\n\n'
+                    '常见原因：该处是 NoData/空值、DEM 该区域损坏，或栅格读取失败。\n'
+                    '可换用其他覆盖此处的 DEM，或在 QGIS 里用「识别要素」查看该点高程。'
+                    % (dem.name(), dem.crs().authid(),
+                       center_dem.x(), center_dem.y()))
+                self.analysisFailed.emit(message)
+                self._toast.hint('计算失败：观察点附近没有有效高程', 8)
+                self._show_error(message)
                 return
 
             self._remember_result(key, result)
@@ -450,11 +490,15 @@ class ViewshedTool(QgsMapToolEmitPoint):
             pass
 
     def _show_error(self, message):
-        """重要错误用弹窗显示，避免消息栏一闪而过"""
+        """重要错误用弹窗显示，避免消息栏一闪而过
+
+        没有 iface（无头/测试环境）时不弹模态框，否则会一直等人点“确定”。
+        """
+        if self.iface is None:
+            return
         try:
             from qgis.PyQt.QtWidgets import QMessageBox
-            QMessageBox.warning(self.iface.mainWindow() if self.iface else None,
-                                '视域分析', message)
+            QMessageBox.warning(self.iface.mainWindow(), '视域分析', message)
         except (AttributeError, RuntimeError):
             pass
 

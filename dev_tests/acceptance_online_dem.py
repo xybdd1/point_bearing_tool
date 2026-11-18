@@ -398,6 +398,17 @@ tool3.run_analysis()
 local_second = time.time() - t
 check('本地 DEM 二次计算（结果缓存）< 1s', local_second < 1.0, '%.2fs' % local_second)
 
+# 观察点落在 DEM 范围外：应给带范围的明确提示，而不是静默失败
+msgs = []
+tool3.analysisFailed.connect(lambda m: msgs.append(m))
+tool3.reset_all()
+tool3.center = tr.transform(QgsPointXY(120.0, 45.0))
+tool3.radius_m = 1359.0
+tool3.run_analysis()
+check('DEM 范围外给出明确提示',
+      (not tool3.locked) and bool(msgs) and '不在所选 DEM' in msgs[-1],
+      (msgs[-1].replace('\n', ' ')[:70] if msgs else 'no message'))
+
 vt.vs_mod.compute_viewshed = orig_compute
 vt.ViewshedTool._draw_result = orig_draw
 
