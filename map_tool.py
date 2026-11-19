@@ -132,7 +132,7 @@ class TwoPointMeasureTool(QgsMapToolEmitPoint):
             b = self._to_wgs84(current)
             m = geodesy.Measurement(a, b)
             self.label.set_label(current, self._label_lines(m))
-        except Exception:
+        except (AttributeError, TypeError, ValueError, RuntimeError):
             pass
 
         self.canvas.refresh()
@@ -213,7 +213,7 @@ class _Toast(object):
             return
         try:
             self.iface.messageBar().pushMessage('两点测距', text, level=0, duration=duration)
-        except Exception:
+        except (AttributeError, TypeError):
             pass
 
     def clear(self):

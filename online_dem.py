@@ -290,8 +290,11 @@ def _fetch_tile(url, state, timeout):
 
 
 def _urllib_get(url, timeout):
+    scheme = urllib.parse.urlsplit(url).scheme.lower()
+    if scheme not in ('http', 'https'):
+        raise OnlineDemError('不支持的瓦片地址：%s' % url)
     request = urllib.request.Request(url, headers={'User-Agent': UA})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310 - 仅允许 http/https
         return response.read()
 
 

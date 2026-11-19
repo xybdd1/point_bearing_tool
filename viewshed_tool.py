@@ -453,7 +453,8 @@ class ViewshedTool(QgsMapToolEmitPoint):
             cache_dir = online_dem.resolve_cache_dir()
         except online_dem.OnlineDemError:
             return None
-        digest = hashlib.sha1(repr(key).encode('utf-8')).hexdigest()[:20]
+        digest = hashlib.sha1(repr(key).encode('utf-8'),
+                              usedforsecurity=False).hexdigest()[:20]
         return os.path.join(cache_dir, 'viewshed_cache', digest + '.npz')
 
     def _load_result_from_disk(self, key):
