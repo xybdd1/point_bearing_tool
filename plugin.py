@@ -22,7 +22,7 @@ from .radius_tool import RadiusCircleTool
 from .settings import Settings
 from .viewshed_tool import ViewshedTool
 
-PLUGIN_NAME = '两点测距与方位角'
+PLUGIN_NAME = '测量工具箱'
 PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -72,7 +72,8 @@ class PointBearingPlugin(object):
 
     # ---------- 生命周期 ----------
     def initGui(self):
-        self.action = QAction(self._icon(), PLUGIN_NAME, self.iface.mainWindow())
+        self.action = QAction(self._icon(), '两点测距与方位角',
+                              self.iface.mainWindow())
         self.action.setObjectName('pointBearingToolAction')
         self.action.setToolTip('在地图上点取两点，距离与方位角直接标在图上')
         self.action.triggered.connect(self.run)

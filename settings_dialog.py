@@ -89,7 +89,7 @@ class SettingsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.settings = Settings()
-        self.setWindowTitle('两点测距与方位角 - 插件设置')
+        self.setWindowTitle('测量工具箱 - 插件设置')
         self.setMinimumWidth(460)
 
         self.tabs = QTabWidget()
