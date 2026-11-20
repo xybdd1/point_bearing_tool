@@ -4,7 +4,7 @@ qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 description=Three map tools: measure distance and bearing between two points, draw an equidistant radius ring, and compute a terrain viewshed from a local or online (Terrarium XYZ) DEM.
 about=The plugin provides three map tools, all activated from the toolbar and finished with right-click or Esc.<br><br>(1) Distance and bearing: click point A then point B; a label at point B shows the ellipsoidal distance, the initial bearing in degrees from true north (0-360) and its Chinese compass name. Moving the mouse after picking A previews the measurement live.<br><br>(2) Radius ring: click a centre point, move the mouse to grow an equidistant circle; the radius is labelled on the circle. Every direction has exactly the requested ground distance (Vincenty direct solution).<br><br>(3) Viewshed: choose a DEM once via "Set elevation (DEM) layer", then click an observation point and drag to set the view distance. The plugin reads the ground elevation at that point from the DEM and computes which cells are actually visible from it, drawing the result as a green overlay. Ray casting with a maximum-elevation test is used, with earth curvature correction.<br><br>Online elevation is supported for Terrarium-encoded XYZ tile layers (e.g. https://terrarium.nextgis.ru/{z}/{x}/{y}.png). Instead of reading online cells one by one, the plugin downloads only the few tiles covering the view circle, decodes elevations from RGB (elevation = R*256 + G + B/256 - 32768), caches them under D:\Temp\point_bearing_cache and stitches a local GeoTIFF that is then processed by the same viewshed algorithm. Cached tiles, stitched DEMs and viewshed results make repeated calculations instant; when the network is unavailable the tool fails fast with a clear message instead of freezing. Other online sources are still rejected.<br><br>All annotations are anchored to map coordinates and follow panning and zooming. No external dependencies; network access is only needed for online elevation sources.
-version=1.4.5
+version=1.4.6
 author=xybdd1
 email=xybdd@qq.com
 license=GPLv2
@@ -20,6 +20,8 @@ deprecated=False
 server=False
 
 changelog=
+  1.4.6
+  - Removed the "Set elevation (DEM) layer" menu item: DEM selection now lives in Plugin settings → Viewshed tab (the chooser still runs automatically when the tool has no valid DEM)
   1.4.5
   - DEM layer selection is now part of the settings dialog (Viewshed tab): pick any usable raster in the project (local or Terrarium online), refresh the list, or browse for a local elevation file
   1.4.4

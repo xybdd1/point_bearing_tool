@@ -35,7 +35,6 @@ class PointBearingPlugin(object):
         self.action = None
         self.radius_action = None
         self.viewshed_action = None
-        self.dem_action = None
         self.settings_action = None
         self.clear_action = None
         self.tool = None
@@ -90,15 +89,11 @@ class PointBearingPlugin(object):
         self.viewshed_action.setToolTip('点观察点后拖出视距，用 DEM 算该点能看到的范围')
         self.viewshed_action.triggered.connect(self.run_viewshed)
 
-        self.dem_action = QAction('设置高程(DEM)图层…', self.iface.mainWindow())
-        self.dem_action.setObjectName('pointBearingDemAction')
-        self.dem_action.setToolTip('选择用于视域分析的高程栅格，只需设置一次')
-        self.dem_action.triggered.connect(lambda: self.choose_dem(show_message=True))
-
         self.settings_action = QAction(self._load_icon('icon_settings.svg'),
                                        '插件设置…', self.iface.mainWindow())
         self.settings_action.setObjectName('pointBearingSettingsAction')
-        self.settings_action.setToolTip('视域参数（塔高/容差/质量）与显示样式设置')
+        self.settings_action.setToolTip('高程(DEM)选择、视域参数（塔高/容差/质量）'
+                                        '与显示样式设置')
         self.settings_action.triggered.connect(self.run_settings)
 
         self.clear_action = QAction('清除全部标注', self.iface.mainWindow())
@@ -112,7 +107,6 @@ class PointBearingPlugin(object):
         self.iface.addPluginToMenu(PLUGIN_NAME, self.action)
         self.iface.addPluginToMenu(PLUGIN_NAME, self.radius_action)
         self.iface.addPluginToMenu(PLUGIN_NAME, self.viewshed_action)
-        self.iface.addPluginToMenu(PLUGIN_NAME, self.dem_action)
         self.iface.addPluginToMenu(PLUGIN_NAME, self.settings_action)
         self.iface.addPluginToMenu(PLUGIN_NAME, self.clear_action)
 
@@ -141,7 +135,7 @@ class PointBearingPlugin(object):
             pass
 
         for act in (self.action, self.radius_action, self.viewshed_action,
-                    self.dem_action, self.settings_action, self.clear_action):
+                    self.settings_action, self.clear_action):
             if act is not None:
                 try:
                     self.iface.removePluginMenu(PLUGIN_NAME, act)
@@ -151,7 +145,6 @@ class PointBearingPlugin(object):
         self.action = None
         self.radius_action = None
         self.viewshed_action = None
-        self.dem_action = None
         self.settings_action = None
         self.clear_action = None
 
