@@ -2,13 +2,17 @@
 """
 settings_dialog.py - 「插件设置…」对话框
 
-两个标签页：
+三个标签页：
+    高程数据：DEM 图层选择（项目内下拉 + 浏览本地文件）
     视域计算：观察者高度 / 目标高度 / 仰角容差 / 曲率修正 / 计算质量
     显示样式：视域填充、视距圆、测距线、范围圈 的颜色 / 粗细 / 透明度
 
 所有值即时读写 Settings（QgsSettings），「恢复默认」一次写回 DEFAULTS。
 """
 
+import os
+
+from qgis.core import QgsProject, QgsRasterLayer
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtWidgets import (
@@ -16,6 +20,8 @@ from qgis.PyQt.QtWidgets import (
     QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QPushButton,
     QSlider, QSpinBox, QTabWidget, QVBoxLayout, QWidget)
 
+from . import online_dem
+from . import viewshed as vs_mod
 from .settings import DEFAULTS, QUALITY_LABELS, Settings
 
 
@@ -86,9 +92,10 @@ class _AlphaRow(QWidget):
 class SettingsDialog(QDialog):
     """插件设置对话框"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, plugin=None):
         super().__init__(parent)
         self.settings = Settings()
+        self._plugin = plugin
         self.setWindowTitle('测量工具箱 - 插件设置')
         self.setMinimumWidth(460)
 
@@ -112,9 +119,104 @@ class SettingsDialog(QDialog):
         self._load_from_settings()
 
     # ---------- 构建 ----------
+    def _build_dem_group(self):
+        """高程(DEM)选择分组，放在「视域计算」页顶部"""
+        group = QGroupBox('高程(DEM)图层')
+        form = QFormLayout(group)
+
+        row = QHBoxLayout()
+        self.combo_dem = QComboBox()
+        self.combo_dem.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        self.combo_dem.currentIndexChanged.connect(self._update_dem_info)
+        btn_refresh = QPushButton('刷新')
+        btn_refresh.clicked.connect(self._populate_dem_combo)
+        row.addWidget(self.combo_dem, 1)
+        row.addWidget(btn_refresh)
+        form.addRow('项目内图层：', row)
+
+        self.btn_dem_file = QPushButton('浏览本地高程文件…')
+        self.btn_dem_file.clicked.connect(self._choose_dem_file)
+        form.addRow('', self.btn_dem_file)
+
+        self.label_dem_info = QLabel('')
+        self.label_dem_info.setWordWrap(True)
+        self.label_dem_info.setStyleSheet('color: #666;')
+        form.addRow('当前：', self.label_dem_info)
+        return group
+
+    def _usable_dem_layers(self):
+        """项目里可用于视域的栅格图层（本地 + Terrarium 在线）"""
+        layers = []
+        for lyr in QgsProject.instance().mapLayers().values():
+            if not isinstance(lyr, QgsRasterLayer) or not lyr.isValid():
+                continue
+            if online_dem.layer_is_terrarium(lyr):
+                layers.append(lyr)
+                continue
+            ok, _reason = vs_mod.check_dem_layer(lyr)
+            if ok:
+                layers.append(lyr)
+        return layers
+
+    def _populate_dem_combo(self):
+        """刷新下拉列表；保留当前选中（若仍存在）"""
+        current = self.settings.dem_layer_id
+        self.combo_dem.blockSignals(True)
+        self.combo_dem.clear()
+        self.combo_dem.addItem('（未选择）', '')
+        index_current = 0
+        for i, lyr in enumerate(self._usable_dem_layers(), start=1):
+            label = '%s  [%s]' % (lyr.name(), lyr.crs().authid())
+            if online_dem.layer_is_terrarium(lyr):
+                label += '（在线·Terrarium）'
+            self.combo_dem.addItem(label, lyr.id())
+            if lyr.id() == current:
+                index_current = i
+        self.combo_dem.setCurrentIndex(index_current)
+        self.combo_dem.blockSignals(False)
+        self._update_dem_info()
+
+    def _update_dem_info(self):
+        layer = QgsProject.instance().mapLayer(
+            self.combo_dem.currentData() or '')
+        if isinstance(layer, QgsRasterLayer) and layer.isValid():
+            if online_dem.layer_is_terrarium(layer):
+                self.label_dem_info.setText(
+                    '在线 Terrarium：%s  %s（计算时缓存所需瓦片）'
+                    % (layer.name(), layer.crs().authid()))
+            else:
+                self.label_dem_info.setText(
+                    '本地：%s  %d×%d 像元  %s'
+                    % (layer.name(), layer.width(), layer.height(),
+                       layer.crs().authid()))
+        else:
+            self.label_dem_info.setText('尚未选择高程图层')
+
+    def _choose_dem_file(self):
+        """浏览本地高程文件，加载进项目并选中"""
+        from qgis.PyQt.QtWidgets import QFileDialog, QMessageBox
+        path, _f = QFileDialog.getOpenFileName(
+            self, '选择高程(DEM)文件', '',
+            '栅格文件 (*.tif *.tiff *.img *.asc *.hgt *.vrt);;所有文件 (*)')
+        if not path:
+            return
+        layer = QgsRasterLayer(path, os.path.basename(path))
+        if not layer.isValid():
+            QMessageBox.warning(self, '高程数据', '这个文件打不开，可能不是有效的栅格。')
+            return
+        ok, reason = vs_mod.check_dem_layer(layer)
+        if not ok:
+            QMessageBox.warning(self, '高程数据', reason)
+            return
+        QgsProject.instance().addMapLayer(layer)
+        self.settings.dem_layer_id = layer.id()
+        self._populate_dem_combo()
+
     def _build_viewshed_tab(self):
         page = QWidget()
         layout = QVBoxLayout(page)
+
+        layout.addWidget(self._build_dem_group())
 
         group = QGroupBox('观察点')
         form = QFormLayout(group)
@@ -148,7 +250,8 @@ class SettingsDialog(QDialog):
         layout.addWidget(group)
 
         hint = QLabel('提示：塔高 30m 时观察点位于 30m 高处，能越过更多近处山脊；'
-                      '容差设 0 最严格，可见范围会明显变小。')
+                      '容差设 0 最严格，可见范围会明显变小。\n'
+                      '本地栅格直接读取；Terrarium 在线高程先缓存所需瓦片再计算。')
         hint.setWordWrap(True)
         hint.setStyleSheet('color: #666;')
         layout.addWidget(hint)
@@ -219,6 +322,8 @@ class SettingsDialog(QDialog):
         index = self.combo_radius_label.findData(s.radius_label_pos)
         self.combo_radius_label.setCurrentIndex(max(0, index))
 
+        self._populate_dem_combo()
+
     def _accept_settings(self):
         s = self.settings
         s.observer_height = self.spin_observer.value()
@@ -235,8 +340,7 @@ class SettingsDialog(QDialog):
             s.set(alpha_key, alpha_row.value())
 
         s.radius_label_pos = self.combo_radius_label.currentData()
-
-        s.dem_layer_id = s.dem_layer_id  # 保持原 DEM
+        s.dem_layer_id = self.combo_dem.currentData() or ''
         self.accept()
 
     def _restore_defaults(self):
