@@ -160,6 +160,7 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(page)
 
         self._style_rows = {}
+        self._style_forms = {}
 
         def add_group(title, color_key, width_key, alpha_key,
                       with_width=True):
@@ -178,6 +179,7 @@ class SettingsDialog(QDialog):
             layout.addWidget(group)
             self._style_rows[title] = (color_key, width_key, alpha_key,
                                        color_btn, width_spin, alpha_row)
+            self._style_forms[title] = form
             return color_btn, width_spin, alpha_row
 
         add_group('视域 - 可见区域填充', 'vs_fill_color', None, 'vs_fill_alpha')
@@ -187,6 +189,12 @@ class SettingsDialog(QDialog):
                   'measure_alpha')
         add_group('范围圈 - 圆周', 'radius_color', 'radius_width',
                   'radius_alpha')
+
+        self.combo_radius_label = QComboBox()
+        self.combo_radius_label.addItem('半径线段中点', 'spoke')
+        self.combo_radius_label.addItem('圆周顶部（正北）', 'border')
+        self._style_forms['范围圈 - 圆周'].addRow('半径标签位置：',
+                                                  self.combo_radius_label)
 
         layout.addStretch(1)
         return page
@@ -208,6 +216,9 @@ class SettingsDialog(QDialog):
                 width_spin.setValue(s._typed(width_key, int))
             alpha_row.set_value(s._typed(alpha_key, int))
 
+        index = self.combo_radius_label.findData(s.radius_label_pos)
+        self.combo_radius_label.setCurrentIndex(max(0, index))
+
     def _accept_settings(self):
         s = self.settings
         s.observer_height = self.spin_observer.value()
@@ -222,6 +233,8 @@ class SettingsDialog(QDialog):
             if width_spin is not None:
                 s.set(width_key, width_spin.value())
             s.set(alpha_key, alpha_row.value())
+
+        s.radius_label_pos = self.combo_radius_label.currentData()
 
         s.dem_layer_id = s.dem_layer_id  # 保持原 DEM
         self.accept()

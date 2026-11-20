@@ -32,6 +32,7 @@ DEFAULTS = {
     'radius_color': '#e31b1b',
     'radius_width': 3,
     'radius_alpha': 255,
+    'radius_label_pos': 'spoke',      # spoke 半径线中点 / border 圆周顶部
 }
 
 QUALITY_FACTORS = {'fast': 0.5, 'standard': 1.0, 'fine': 2.0}
@@ -246,6 +247,17 @@ class Settings(object):
 
     def radius_qcolor(self):
         return self._color('radius_color', 'radius_alpha')
+
+    @property
+    def radius_label_pos(self):
+        """半径标签位置：'spoke' 半径线中点 / 'border' 圆周顶部"""
+        value = self._typed('radius_label_pos', str)
+        return value if value in ('spoke', 'border') else 'spoke'
+
+    @radius_label_pos.setter
+    def radius_label_pos(self, value):
+        self.set('radius_label_pos',
+                 value if value in ('spoke', 'border') else 'spoke')
 
     # ---------- 恢复默认 ----------
     def reset_to_defaults(self):

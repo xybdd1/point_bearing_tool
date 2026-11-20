@@ -137,9 +137,14 @@ class RadiusCircleTool(QgsMapToolEmitPoint):
         self.spoke_rb.addPoint(cursor_point)
         self.spoke_rb.show()
 
-        # 标签放在圆周上方（正北方向），只显示半径
-        north_wgs = geodesy.destination_point(center_wgs, 0, self.radius_m)
-        label_point = self._from_wgs84(north_wgs)
+        # 半径标签位置：半径线中点，或圆周顶部（正北）
+        if self.settings.radius_label_pos == 'spoke':
+            label_point = QgsPointXY(
+                (self.center.x() + cursor_point.x()) / 2.0,
+                (self.center.y() + cursor_point.y()) / 2.0)
+        else:
+            north_wgs = geodesy.destination_point(center_wgs, 0, self.radius_m)
+            label_point = self._from_wgs84(north_wgs)
 
         self.label.set_label(
             label_point,
